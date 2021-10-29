@@ -149,8 +149,11 @@ func (s *SubscriptionHandler) OnNextEvent(ctx context.Context, fn func (ev types
 	return s.db.BeginFunc(ctx, func(tx pgx.Tx) error {
 		row := tx.QueryRow(ctx, `SELECT id, subject, data, sequence, status, attempts FROM incomingEvents WHERE status = 'pending' ORDER BY sequence ASC FOR UPDATE SKIP LOCKED LIMIT 1`)
 		err := row.Scan(&event.ID, &event.Subject, &event.Data, &event.Sequence, &event.Status, &event.Attempts)
-		if err != nil {
+		if err != nil && err != pgx.ErrNoRows {
 			return err
+		}
+		if err == pgx.ErrNoRows {
+			return nil
 		}
 		err = fn(event, tx)
 		event.Attempts++
