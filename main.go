@@ -48,7 +48,8 @@ func (s *SubscriptionHandler) Subscribe(topic types.Subject) error {
 		return fmt.Errorf("handler for topic %s already registered", topic)
 	}
 	s.subscriptions[topic] = struct{}{}
-	subscription, err := s.js.QueueSubscribe(string(topic), s.service, func(msg *nats.Msg) {
+	queueName := s.service + ":" + string(topic)
+	subscription, err := s.js.QueueSubscribe(string(topic), queueName, func(msg *nats.Msg) {
 		data := json.RawMessage(msg.Data)
 		event := types.Event{
 			Subject: topic,
@@ -89,7 +90,7 @@ func (s *SubscriptionHandler) Subscribe(topic types.Subject) error {
 			return
 		}
 		_ = msg.Ack()
-	}, nats.Durable(s.service), nats.AckExplicit())
+	}, nats.Durable(queueName), nats.AckExplicit())
 	s.unsubscribes[topic] = subscription.Unsubscribe
 	if err != nil {
 		return fmt.Errorf("subscription error: %w", err)
