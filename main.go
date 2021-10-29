@@ -21,6 +21,7 @@ import (
 type SubscriptionHandler struct {
 	sync.Mutex
 	rl ratelimit.Limiter
+	errRl ratelimit.Limiter
 	ctx context.Context
 	service string
 	db *pgxpool.Pool
@@ -128,6 +129,7 @@ func NewSubscriptionHandler(serviceName string, postgresUrl string, natsUrl stri
 		subscriptions: make(map[types.Subject]struct{}),
 		unsubscribes: make(map[types.Subject]func() error),
 		rl: ratelimit.New(1, ratelimit.Per(time.Second)), // per second
+		errRl: ratelimit.New(1, ratelimit.Per(time.Second)), // per second
 	}
 	handler.ctx = context.Background()
 	handler.service = serviceName
@@ -171,6 +173,32 @@ func (s *SubscriptionHandler) OnNextEvent(ctx context.Context, fn func (ev types
 		if err != nil {
 			event.Status = statuses.Error
 		} else {
+			event.Status = statuses.Processed
+		}
+		_, err = tx.Exec(ctx, `UPDATE incomingEvents SET status = $1, attempts = $2 WHERE id = $3`, event.Status, event.Attempts, event.ID)
+		if err != nil {
+			return err
+		}
+		return nil
+	})
+}
+
+func (s *SubscriptionHandler) RetryEvent(ctx context.Context, fn func (ev types.IncomingEvent, tx pgx.Tx) error) error {
+	event := types.IncomingEvent{}
+	return s.db.BeginFunc(ctx, func(tx pgx.Tx) error {
+		row := tx.QueryRow(ctx, `SELECT id, subject, data, sequence, status, attempts FROM incomingEvents WHERE status = 'error' ORDER BY sequence * attempts ASC FOR UPDATE SKIP LOCKED LIMIT 1`)
+		err := row.Scan(&event.ID, &event.Subject, &event.Data, &event.Sequence, &event.Status, &event.Attempts)
+		if err != nil && err != pgx.ErrNoRows {
+			return err
+		}
+
+		if err == pgx.ErrNoRows {
+			s.errRl.Take() // If there are no results, then we should wait a little bit
+			return nil
+		}
+		err = fn(event, tx)
+		event.Attempts++
+		if err == nil {
 			event.Status = statuses.Processed
 		}
 		_, err = tx.Exec(ctx, `UPDATE incomingEvents SET status = $1, attempts = $2 WHERE id = $3`, event.Status, event.Attempts, event.ID)
