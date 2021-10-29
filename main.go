@@ -12,6 +12,7 @@ import (
 	"github.com/jackc/pgx/v4/pgxpool"
 	"github.com/joho/godotenv"
 	"github.com/nats-io/nats.go"
+	"strings"
 	"sync"
 )
 
@@ -48,7 +49,7 @@ func (s *SubscriptionHandler) Subscribe(topic types.Subject) error {
 		return fmt.Errorf("handler for topic %s already registered", topic)
 	}
 	s.subscriptions[topic] = struct{}{}
-	queueName := s.service + ":" + string(topic)
+	queueName := strings.Replace(s.service + ":" + string(topic), ".", "-", -1)
 	subscription, err := s.js.QueueSubscribe(string(topic), queueName, func(msg *nats.Msg) {
 		data := json.RawMessage(msg.Data)
 		event := types.Event{
