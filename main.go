@@ -19,7 +19,7 @@ import (
 )
 
 type SubscriptionHandler struct {
-	sync.Mutex
+	lock sync.Mutex
 	rl ratelimit.Limiter
 	errRl ratelimit.Limiter
 	ctx context.Context
@@ -47,8 +47,8 @@ type Transaction interface {
 }
 
 func (s *SubscriptionHandler) Subscribe(topic types.Subject) error {
-	s.Lock()
-	defer s.Unlock()
+	s.lock.Lock()
+	defer s.lock.Unlock()
 	if _, ok := s.subscriptions[topic]; ok {
 		return fmt.Errorf("handler for topic %s already registered", topic)
 	}
