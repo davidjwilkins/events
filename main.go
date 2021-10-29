@@ -90,6 +90,7 @@ func (s *SubscriptionHandler) Subscribe(topic types.Subject) error {
 			dbEvent.Subject,
 			dbEvent.Data,
 			dbEvent.Sequence,
+			dbEvent.Status,
 			dbEvent.Attempts,
 		)
 		if err != nil {
