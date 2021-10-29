@@ -12,12 +12,15 @@ import (
 	"github.com/jackc/pgx/v4/pgxpool"
 	"github.com/joho/godotenv"
 	"github.com/nats-io/nats.go"
+	"go.uber.org/ratelimit"
 	"strings"
 	"sync"
+	"time"
 )
 
 type SubscriptionHandler struct {
 	sync.Mutex
+	rl ratelimit.Limiter
 	ctx context.Context
 	service string
 	db *pgxpool.Pool
@@ -119,6 +122,7 @@ func NewSubscriptionHandler(serviceName string, postgresUrl string, natsUrl stri
 	handler = &SubscriptionHandler{
 		subscriptions: make(map[types.Subject]struct{}),
 		unsubscribes: make(map[types.Subject]func() error),
+		rl: ratelimit.New(1, ratelimit.Per(time.Second)), // per second
 	}
 	handler.ctx = context.Background()
 	handler.service = serviceName
@@ -152,7 +156,9 @@ func (s *SubscriptionHandler) OnNextEvent(ctx context.Context, fn func (ev types
 		if err != nil && err != pgx.ErrNoRows {
 			return err
 		}
+
 		if err == pgx.ErrNoRows {
+			s.rl.Take() // If there are no results, then we should wait a little bit
 			return nil
 		}
 		err = fn(event, tx)
