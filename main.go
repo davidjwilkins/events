@@ -111,7 +111,10 @@ func NewSubscriptionHandler(serviceName string, postgresUrl string, natsUrl stri
 	if err != nil {
 		return
 	}
-	handler = &SubscriptionHandler{}
+	handler = &SubscriptionHandler{
+		subscriptions: make(map[types.Subject]struct{}),
+		unsubscribes: make(map[types.Subject]func() error),
+	}
 	handler.ctx = context.Background()
 	handler.service = serviceName
 	handler.db, err = pgxpool.Connect(handler.ctx, postgresUrl)
