@@ -10,7 +10,7 @@ type Subject string
 
 const (
 	UserCreatedV1 Subject = "users.user:created:v1"
-	UserUpdatedV1 Subject = "users.user:updateds:v1"
+	UserUpdatedV1 Subject = "users.user:updated:v1"
 	UserForgotPasswordV1 Subject = "users.user:forgot-password:v1"
 )
 
