@@ -91,7 +91,10 @@ func (s *SubscriptionHandler) Subscribe(topic types.Subject) error {
 		_ = msg.Ack()
 	}, nats.Durable(s.service), nats.AckExplicit())
 	s.unsubscribes[topic] = subscription.Unsubscribe
-	return fmt.Errorf("subscription error: %w", err)
+	if err != nil {
+		return fmt.Errorf("subscription error: %w", err)
+	}
+	return nil
 }
 
 func (s *SubscriptionHandler) Unsubscribe(topic types.Subject) error {
