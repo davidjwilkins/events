@@ -54,6 +54,7 @@ func (s *SubscriptionHandler) Subscribe(topic types.Subject) error {
 	s.subscriptions[topic] = struct{}{}
 	queueName := strings.Replace(s.service + ":" + string(topic), ".", "-", -1)
 	subscription, err := s.js.QueueSubscribe(string(topic), queueName, func(msg *nats.Msg) {
+		fmt.Println("Message received")
 		data := json.RawMessage(msg.Data)
 		event := types.Event{
 			Subject: topic,
@@ -62,6 +63,7 @@ func (s *SubscriptionHandler) Subscribe(topic types.Subject) error {
 		meta, err := msg.Metadata()
 		// TODO: add error logging
 		if err != nil {
+			fmt.Println(err)
 			_ = msg.Nak()
 			return
 		}
@@ -69,6 +71,7 @@ func (s *SubscriptionHandler) Subscribe(topic types.Subject) error {
 		eventID := msg.Header.Get("Nats-Msg-Id")
 		eventUUID, err := uuid.Parse(eventID)
 		if err != nil {
+			fmt.Println(err)
 			_ = msg.Nak()
 			return
 		}
@@ -90,6 +93,7 @@ func (s *SubscriptionHandler) Subscribe(topic types.Subject) error {
 			dbEvent.Attempts,
 		)
 		if err != nil {
+			fmt.Println(err)
 			_ = msg.Nak()
 			return
 		}
