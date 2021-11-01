@@ -3,7 +3,7 @@ package statuses
 type Status string
 
 const (
-	Pending Status = "pending"
+	Pending   Status = "pending"
 	Processed Status = "processed"
-	Error Status = "error"
+	Error     Status = "error"
 )

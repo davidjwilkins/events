@@ -19,17 +19,17 @@ import (
 )
 
 type SubscriptionHandler struct {
-	lock sync.Mutex
-	rl ratelimit.Limiter
-	errRl ratelimit.Limiter
-	ctx context.Context
-	service string
-	db *pgxpool.Pool
-	nc *nats.Conn
-	js nats.JetStreamContext
+	lock          sync.Mutex
+	rl            ratelimit.Limiter
+	errRl         ratelimit.Limiter
+	ctx           context.Context
+	service       string
+	db            *pgxpool.Pool
+	nc            *nats.Conn
+	js            nats.JetStreamContext
 	subscriptions map[types.Subject]struct{}
-	unsubscribes map[types.Subject]func() error
-	close chan <- struct{}
+	unsubscribes  map[types.Subject]func() error
+	close         chan<- struct{}
 }
 
 func (s *SubscriptionHandler) Close() {
@@ -43,7 +43,6 @@ type DB interface {
 type Transaction interface {
 	Commit() error
 	Rollback() error
-
 }
 
 func (s *SubscriptionHandler) Subscribe(topic types.Subject) error {
@@ -53,7 +52,7 @@ func (s *SubscriptionHandler) Subscribe(topic types.Subject) error {
 		return fmt.Errorf("handler for topic %s already registered", topic)
 	}
 	s.subscriptions[topic] = struct{}{}
-	queueName := strings.Replace(s.service + ":" + string(topic), ".", "-", -1)
+	queueName := strings.Replace(s.service+":"+string(topic), ".", "-", -1)
 	subscription, err := s.js.QueueSubscribe(string(topic), queueName, func(msg *nats.Msg) {
 		fmt.Println("Message received")
 		data := json.RawMessage(msg.Data)
@@ -127,9 +126,9 @@ func NewSubscriptionHandler(serviceName string, postgresUrl string, natsUrl stri
 	}
 	handler = &SubscriptionHandler{
 		subscriptions: make(map[types.Subject]struct{}),
-		unsubscribes: make(map[types.Subject]func() error),
-		rl: ratelimit.New(1, ratelimit.Per(time.Second)), // per second
-		errRl: ratelimit.New(1, ratelimit.Per(time.Second)), // per second
+		unsubscribes:  make(map[types.Subject]func() error),
+		rl:            ratelimit.New(1, ratelimit.Per(time.Second)), // per second
+		errRl:         ratelimit.New(1, ratelimit.Per(time.Second)), // per second
 	}
 	handler.ctx = context.Background()
 	handler.service = serviceName
@@ -155,7 +154,7 @@ func NewSubscriptionHandler(serviceName string, postgresUrl string, natsUrl stri
 	return
 }
 
-func (s *SubscriptionHandler) OnNextEvent(ctx context.Context, fn func (ev types.IncomingEvent, tx pgx.Tx) error) error {
+func (s *SubscriptionHandler) OnNextEvent(ctx context.Context, fn func(ev types.IncomingEvent, tx pgx.Tx) error) error {
 	event := types.IncomingEvent{}
 	return s.db.BeginFunc(ctx, func(tx pgx.Tx) error {
 		row := tx.QueryRow(ctx, `SELECT id, subject, data, sequence, status, attempts FROM incomingEvents WHERE status = 'pending' ORDER BY sequence ASC FOR UPDATE SKIP LOCKED LIMIT 1`)
@@ -183,7 +182,7 @@ func (s *SubscriptionHandler) OnNextEvent(ctx context.Context, fn func (ev types
 	})
 }
 
-func (s *SubscriptionHandler) RetryEvent(ctx context.Context, fn func (ev types.IncomingEvent, tx pgx.Tx) error) error {
+func (s *SubscriptionHandler) RetryEvent(ctx context.Context, fn func(ev types.IncomingEvent, tx pgx.Tx) error) error {
 	event := types.IncomingEvent{}
 	return s.db.BeginFunc(ctx, func(tx pgx.Tx) error {
 		row := tx.QueryRow(ctx, `SELECT id, subject, data, sequence, status, attempts FROM incomingEvents WHERE status = 'error' ORDER BY sequence * attempts ASC FOR UPDATE SKIP LOCKED LIMIT 1`)
